@@ -68,7 +68,7 @@ impl SlowTaskRunner {
     fn update_metric(&self, name: MetricName, metric: Metric<Float>) {
         let ename = name.clone();
         let em = MetricTypeName::from_metric(&metric);
-        self.cache.accumulate(name, metric).unwrap_or_else(|_| {
+        self.cache.accumulate(name, metric, self.log.clone()).unwrap_or_else(|_| {
             trace!(
                 self.log,
                 "could not accumulate in long cache at {:?} new type '{}'",

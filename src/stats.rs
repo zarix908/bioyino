@@ -1,4 +1,5 @@
 use std::collections::hash_map::Entry;
+use std::io::Read;
 use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::collections::HashMap;
@@ -7,6 +8,7 @@ use std::time::{self, Duration, SystemTime};
 
 use bioyino_metric::aggregate::Aggregate;
 use bioyino_metric::{Metric, MetricTypeName, MetricValue};
+use combine::parser::combinator::StrLike;
 use log::warn as logw;
 use serde::Serialize;
 use bytes::{Bytes, BytesMut, BufMut};
@@ -219,7 +221,7 @@ impl OwnStats {
                     let metric = StatsdMetric::new($value, StatsdType::Counter, None).unwrap();
 
                     let name = self.format_metric_carbon(&mut buf, $suffix.as_bytes(), false);
-                    update_metric(&mut self.cache, name.clone(), metric.clone());
+                    update_metric(&mut self.cache, name.clone(), metric.clone(), self.log.clone());
 
                     let name = self.format_metric_carbon(&mut buf, $suffix.as_bytes(), true);
                     let chan = self.next_chan();
@@ -346,7 +348,12 @@ impl OwnStats {
     }
 }
 
-fn update_metric(cache: &mut HashMap<MetricName, Metric<Float>>, name: MetricName, metric: StatsdMetric<Float>) {
+fn update_metric(
+    cache: &mut HashMap<MetricName, Metric<Float>>, 
+    name: MetricName, 
+    metric: StatsdMetric<Float>,
+    log: Logger,
+) {
     let ename = name.clone();
     let em = MetricTypeName::from_statsd_metric(&metric);
     if em == MetricTypeName::CustomHistogram {
@@ -355,8 +362,14 @@ fn update_metric(cache: &mut HashMap<MetricName, Metric<Float>>, name: MetricNam
         return;
     }
 
+    let name_clone = name.clone();
     match cache.entry(name) {
         Entry::Occupied(ref mut entry) => {
+            let name_str = String::from_utf8(name_clone.name.to_ascii_lowercase()).unwrap();
+            if name_str == "drop" {
+                info!(log, "===========================STATS CACHE");
+            }
+
             entry.get_mut().accumulate_statsd(metric).unwrap_or_else(|_| {
                 let mtype = MetricTypeName::from_metric(&entry.get());
                 logw!(

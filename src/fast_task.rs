@@ -71,7 +71,7 @@ pub fn start_fast_threads(log: Logger, config: Arc<System>) -> Result<(Vec<Sende
     Ok((chans, prio_chans))
 }
 
-fn update_metric(cache: &mut Cache, name: MetricName, metric: StatsdMetric<Float>) {
+fn update_metric(cache: &mut Cache, name: MetricName, metric: StatsdMetric<Float>, log: Logger) {
     let ename = name.clone();
     let em = MetricTypeName::from_statsd_metric(&metric);
     if em == MetricTypeName::CustomHistogram {
@@ -80,8 +80,14 @@ fn update_metric(cache: &mut Cache, name: MetricName, metric: StatsdMetric<Float
         return;
     }
 
+    let name_clone = name.clone();
     match cache.entry(name) {
         Entry::Occupied(ref mut entry) => {
+            let name_str = String::from_utf8(name_clone.name.to_ascii_lowercase()).unwrap();
+            if name_str == "drop" {
+                info!(log, "===========================STATS CACHE");
+            }
+
             entry.get_mut().accumulate_statsd(metric).unwrap_or_else(|_| {
                 let mtype = MetricTypeName::from_metric(&entry.get());
                 logw!(
@@ -160,13 +166,17 @@ impl FastTaskRunner {
                     if name.has_tags() && self.config.metrics.create_untagged_copy {
                         self.names_arena.extend_from_slice(name.name_without_tags());
                         let untagged = MetricName::new_untagged(self.names_arena.split());
-                        update_metric(&mut self.short, untagged, metric.clone());
+                        update_metric(&mut self.short, untagged, metric.clone(), self.log.clone());
                     }
 
-                    update_metric(&mut self.short, name, metric);
+                    update_metric(&mut self.short, name, metric, self.log.clone());
                 }
             }
-            FastTask::Accumulate(name, metric) => update_metric(&mut self.short, name, metric),
+            FastTask::Accumulate(name, metric) => update_metric(
+                &mut self.short, 
+                name, metric, 
+                self.log.clone(),
+            ),
             FastTask::TakeSnapshot(channel) => {
                 // we need our cache to be sent for processing
                 // in place of it we need a new cache with most probably the same size

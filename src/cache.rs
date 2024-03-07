@@ -5,6 +5,7 @@ use std::ops::DerefMut;
 use std::sync::{Arc, Mutex, RwLock};
 
 use bioyino_metric::{name::MetricName, Metric};
+use slog::{info, Logger};
 
 use crate::errors::GeneralError;
 use crate::Float;
@@ -26,7 +27,7 @@ impl SharedCache {
         }
     }
 
-    pub fn accumulate(&self, name: MetricName, new: Metric<Float>) -> Result<(), GeneralError> {
+    pub fn accumulate(&self, name: MetricName, new: Metric<Float>, log: Logger) -> Result<(), GeneralError> {
         let mut hasher = DefaultHasher::new();
         hasher.write(name.name_with_tags());
         let index = hasher.finish() as usize % SHARDS;
@@ -39,6 +40,12 @@ impl SharedCache {
             None => {
                 drop(read);
                 let mut write = self.shards[index].write().unwrap();
+
+                let name_str = String::from_utf8(name.clone().name.to_ascii_lowercase()).unwrap();
+                if name_str == "drop" {
+                    info!(log, "===========================STATS CACHE");
+                }
+
                 write.insert(name, Mutex::new(new));
             }
         }
