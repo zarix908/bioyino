@@ -43,7 +43,7 @@ impl SharedCache {
 
                 let name_str = String::from_utf8(name.clone().name.to_ascii_lowercase()).unwrap();
                 if name_str == "drop" {
-                    info!(log, "===========================STATS CACHE");
+                    info!(log, "===========================SLOW CACHE");
                 }
 
                 write.insert(name, Mutex::new(new));

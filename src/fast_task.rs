@@ -85,7 +85,7 @@ fn update_metric(cache: &mut Cache, name: MetricName, metric: StatsdMetric<Float
         Entry::Occupied(ref mut entry) => {
             let name_str = String::from_utf8(name_clone.name.to_ascii_lowercase()).unwrap();
             if name_str == "drop" {
-                info!(log, "===========================STATS CACHE");
+                info!(log, "===========================FAST CACHE");
             }
 
             entry.get_mut().accumulate_statsd(metric).unwrap_or_else(|_| {
